@@ -1085,19 +1085,20 @@ route_hull <- modelled_routes[chull(modelled_routes$ice_lon, modelled_routes$ice
 m <- m |>
   addRectangles(
     lng1 = ext@xmin, lat1 = ext@ymin, lng2 = ext@xmax, lat2 = ext@ymax,
-    color = "#1c7ed6", weight = 2, fill = FALSE,
+    color = "#1c7ed6", weight = 3, opacity = 0.9, fill = FALSE,
     options = pathOptions(interactive = FALSE),
     group = "Data area"
   ) |>
   addPolygons(
     lng = route_hull$ice_lon, lat = route_hull$ice_lat,
-    color = "#d6336c", weight = 2, dashArray = "6 6", fill = FALSE,
+    color = "#e8590c", weight = 3, opacity = 0.95, dashArray = "10 7", fill = FALSE,
     options = pathOptions(interactive = FALSE),
     group = "Data area"
   ) |>
   addLegend(
     position = "bottomleft",
-    colors = c("#1c7ed6", "#d6336c"),
+    colors = c("#1c7ed6", "#e8590c"),
+    opacity = 1,
     labels = c("Ice thickness layer", "Routes with model"),
     title = "Data area",
     group = "Data area"
