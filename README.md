@@ -8,9 +8,10 @@ Tägliche Eiskarte für Eisfälle in Nordtirol, basierend auf dem Modell der Mas
 
 `.github/workflows/build_site.yml` läuft jeden Tag um 15:00 UTC und veröffentlicht das Ergebnis auf GitHub Pages:
 
-1. `scripts/00_build_plots_all.R`: rechnet das Modell für jede Route ab dem 1. Oktober der laufenden Saison
-2. `scripts/02_build_list_page.R`: erzeugt die Routenliste und die Detailseiten
-3. `scripts/01_build_map.R`: erzeugt die Karte aus den INCA-Feldern
+1. `scripts/00_roll_sun_tables.R`: datiert die Sonnentabellen (Saison 2025/26, 1.11. bis 30.4.) auf die laufende Saison um
+2. `scripts/00_build_plots_all.R`: rechnet das Modell für jede Route ab dem 1. Oktober der laufenden Saison
+3. `scripts/02_build_list_page.R`: erzeugt die Routenliste und die Detailseiten
+4. `scripts/01_build_map.R`: erzeugt die Karte aus den INCA-Feldern
 
 Wetterdaten werden bei jedem Lauf von GeoSphere Austria und dem Lawinenwarndienst Tirol geladen. Generierte Dateien liegen nicht in Git. Die INCA-Felder liegen im Actions-Cache.
 

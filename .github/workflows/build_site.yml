@@ -76,6 +76,9 @@ jobs:
           key: inca-v1-${{ github.run_id }}
           restore-keys: inca-v1-
 
+      - name: Date sun tables to current season
+        run: Rscript scripts/00_roll_sun_tables.R
+
       - name: Build plots
         env:
           UIDS: ${{ inputs.uids }}

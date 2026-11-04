@@ -380,7 +380,7 @@ summarise_uid_model <- function(uid) {
       date = as.Date(with_tz(time, TZ_LOCAL)),
       thickness_m = if ("thickness_m" %in% names(df)) to_num(.data$thickness_m) else NA_real_
     ) %>%
-    filter(!is.na(time), is.finite(thickness_m)) %>%
+    filter(!is.na(time), is.finite(thickness_m), time <= Sys.time()) %>%
     arrange(time)
   
   if (nrow(df) == 0) return(empty)
