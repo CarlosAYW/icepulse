@@ -276,15 +276,15 @@ DEM_SPECS <- list(
   list(
     id = "oetztal_50cm",
     label = "DOM_Oetztal_50cm",
-    path = "data/DEM/DOM_Oetztal_50cm.tif",
+    path = file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "DOM_Oetztal_50cm.tif"),
     factor = 1.10,
     local_aspect_only = TRUE,
     aspect_target_res_m = 2,
     horizon_min_step_m = 10
   ),
-  list(id = "tirol_5m", label = "DGM_Tirol_5m_epsg31254_2006_2020", path = "data/DEM/DGM_Tirol_5m_epsg31254_2006_2020.tif", factor = 1.00),
-  list(id = "at_5m", label = "DGM_AT_5m_epsg31287", path = "data/DEM/DGM_AT_5m_epsg31287.tif", factor = 0.95),
-  list(id = "eudem_25m", label = "eudem_dem_3035_europe", path = "data/DEM/eudem_dem_3035_europe.tif", factor = 0.55)
+  list(id = "tirol_5m", label = "DGM_Tirol_5m_epsg31254_2006_2020", path = file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "DGM_Tirol_5m_epsg31254_2006_2020.tif"), factor = 1.00),
+  list(id = "at_5m", label = "DGM_AT_5m_epsg31287", path = file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "DGM_AT_5m_epsg31287.tif"), factor = 0.95),
+  list(id = "eudem_25m", label = "eudem_dem_3035_europe", path = file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "eudem_dem_3035_europe.tif"), factor = 0.55)
 )
 
 spec_num <- function(spec, name, default = NA_real_) {
@@ -348,7 +348,7 @@ choose_dem_for_lonlat <- function(lon, lat, dem_catalog) {
 aspect_cache_env <- new.env(parent = emptyenv())
 
 aspect_cache_path <- function(spec) {
-  file.path("data", "DEM", "_cache_aspect", paste0(spec$id, "_aspect_deg_cache.tif"))
+  file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "_cache_aspect", paste0(spec$id, "_aspect_deg_cache.tif"))
 }
 
 get_aspect_raster <- function(entry) {
@@ -533,8 +533,8 @@ compute_station_assignments <- function(meta, affected_uids) {
 
   dem <- NULL
   dem_topo <- NULL
-  if (file.exists("data/DEM/DGM_Tirol_5m_epsg31254_2006_2020.tif")) {
-    dem <- terra::rast("data/DEM/DGM_Tirol_5m_epsg31254_2006_2020.tif")
+  if (file.exists(file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "DGM_Tirol_5m_epsg31254_2006_2020.tif"))) {
+    dem <- terra::rast(file.path(Sys.getenv("ICEFALL_DEM_DIR", "data/DEM"), "DGM_Tirol_5m_epsg31254_2006_2020.tif"))
     fact <- max(1, round(25 / mean(terra::res(dem))))
     dem_topo <- if (fact > 1) terra::aggregate(dem, fact = fact, fun = mean, na.rm = TRUE) else dem
   }
