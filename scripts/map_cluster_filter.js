@@ -94,9 +94,10 @@ function(el, x){
       var popup = layer.getPopup ? layer.getPopup() : null;
       var content = popup && popup.getContent ? popup.getContent() : '';
       if (content){
-        var wrapper = document.createElement('div');
+        // A template is inert: unlike a div, it does not fetch the popup's chart image.
+        var wrapper = document.createElement('template');
         wrapper.innerHTML = content;
-        var node = wrapper.querySelector('.map-meta');
+        var node = wrapper.content.querySelector('.map-meta');
         if (node && node.dataset){
           meta.name = node.dataset.name || '';
           meta.uid  = node.dataset.uid  || '';

@@ -45,7 +45,7 @@ jobs:
           sudo apt-get install -y \
             libcurl4-openssl-dev libssl-dev libxml2-dev \
             libgdal-dev libproj-dev libgeos-dev libudunits2-dev \
-            libnetcdf-dev netcdf-bin
+            libnetcdf-dev netcdf-bin pngquant
 
       - name: Install R packages
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -116,6 +116,14 @@ jobs:
           else
             Rscript scripts/00_build_plots_all.R
           fi
+
+      # Gleiche Auflösung, aber Farbpalette statt Vollfarbe. Schlägt das für ein Bild
+      # fehl oder bringt es nichts, bleibt dort einfach das Original.
+      - name: Compress charts
+        run: |
+          before=$(du -sk site/plots | cut -f1)
+          find site/plots -name '*.png' -print0 | xargs -0 -n 20 -P 4 pngquant --force --ext .png --skip-if-larger 64 || true
+          echo "Diagramme: ${before} KB -> $(du -sk site/plots | cut -f1) KB" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Build list page
         run: Rscript scripts/02_build_list_page.R
