@@ -1,0 +1,59 @@
+# R / RStudio
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+Rplots.pdf
+
+# GitHub Pages build outputs
+/site/
+/list.html
+/icefalls_table.json
+/last_update.json
+
+# Runtime-generated data and caches
+/data/plots/
+/data/inca_nordtirol/point_timeseries/
+/data/_cache_sunapi/
+/data/_cache_inversion/
+/data/_cache_cap/
+/data/ModelRuns/
+/data/derived/icefall_structure/cache/
+/data/DEM/_cache_aspect/
+/data/_cache_aws_tl/
+/data/CAP/cap_k_calibration_pairs.csv
+
+# Large DEM/source files that should stay local
+/data/DEM/DGM_AT_5m_epsg31287.tif
+/data/DEM/DGM_Tirol_5m_epsg31254_2006_2020.tif
+/data/DEM/DOM_Oetztal_50cm.tif
+/data/DEM/eudem_dem_3035_europe.tif
+/DGM_Tirol_5m_epsg31254_2006_2020.tif
+
+# Local work areas, validation outputs, and scratch files
+/ALT/
+/add_new/*
+!/add_new/
+!/add_new/README.md
+!/add_new/new_icefalls.csv
+/tmp/
+/scripts/AWS Validation/out/
+# Private validation material (WhatsApp/website photos, videos) - keep local only, never push.
+# Published: review tool code and the sanitized decision export only (thesis section 2.2.8).
+/analysis/Icefall_validation/*
+!/analysis/Icefall_validation/Review_Tool/
+/analysis/Icefall_validation/Review_Tool/*
+!/analysis/Icefall_validation/Review_Tool/README.md
+!/analysis/Icefall_validation/Review_Tool/build_review_data.py
+!/analysis/Icefall_validation/Review_Tool/review_tool.html
+!/analysis/Icefall_validation/Review_Tool/serve_review_tool.py
+!/analysis/Icefall_validation/Review_Tool/review_decisions_public.csv
+
+# Python and OS noise
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+
+# Daily INCA downloads are kept in the Actions cache, never in Git
+/data/inca_nordtirol/*.nc

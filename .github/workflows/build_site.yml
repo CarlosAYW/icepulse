@@ -1,0 +1,168 @@
+name: Eiskarte täglich bauen
+
+on:
+  schedule:
+    # 15:00 UTC = 16:00/17:00 in Österreich. GitHub kann den Start etwas verzögern.
+    - cron: "0 15 * * *"
+
+  workflow_dispatch:
+    inputs:
+      uids:
+        description: "Testlauf nur für diese UIDs, z. B. 12,34,56 (wird nicht veröffentlicht)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: System dependencies (spatial + netcdf)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcurl4-openssl-dev libssl-dev libxml2-dev \
+            libgdal-dev libproj-dev libgeos-dev libudunits2-dev \
+            libnetcdf-dev netcdf-bin
+
+      - name: Install R packages
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::httr
+            any::httr2
+            any::jsonlite
+            any::dplyr
+            any::lubridate
+            any::stringr
+            any::tidyr
+            any::readr
+            any::tibble
+            any::zoo
+            any::ggplot2
+            any::raster
+            any::leaflet
+            any::htmlwidgets
+            any::htmltools
+            any::ncdf4
+            any::png
+            any::readxl
+          needs: check
+
+      # Bereits geladene INCA-Felder der Saison wiederverwenden. Jeder Lauf speichert
+      # einen neuen Stand; der jüngste passende wird beim nächsten Lauf geladen.
+      - name: Restore INCA cache
+        uses: actions/cache@v6
+        with:
+          path: data/inca_nordtirol/*.nc
+          key: inca-v1-${{ github.run_id }}
+          restore-keys: inca-v1-
+
+      - name: Build plots
+        env:
+          UIDS: ${{ inputs.uids }}
+        run: |
+          if [ -n "$UIDS" ]; then
+            Rscript scripts/00_build_plots_all.R --uids="$UIDS"
+          else
+            Rscript scripts/00_build_plots_all.R
+          fi
+
+      - name: Build list page
+        run: Rscript scripts/02_build_list_page.R
+
+      - name: Add homepage assets
+        run: |
+          mkdir -p site/assets
+          cp assets/index.html site/index.html
+          find assets -mindepth 1 -maxdepth 1 ! -name index.html -exec cp -R {} site/assets/ \;
+
+      - name: Build map
+        run: Rscript scripts/01_build_map.R
+
+      # Lieber die Karte von gestern online lassen als eine lückenhafte veröffentlichen.
+      - name: Check build result
+        id: gate
+        env:
+          UIDS: ${{ inputs.uids }}
+        run: |
+          test -s site/map.html
+          test -s site/list.html
+          total=$(tail -n +2 data/AWS/icefalls_nearest_station.csv | cut -d, -f1 | sort -u | wc -l)
+          failed=0
+          if [ -f site/plots_failed_uids.txt ]; then
+            failed=$(wc -l < site/plots_failed_uids.txt)
+            echo "Fehlgeschlagene UIDs: $(paste -sd, site/plots_failed_uids.txt)"
+          fi
+          echo "Routen: $total, fehlgeschlagen: $failed" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -n "$UIDS" ]; then
+            echo "Testlauf: wird nicht veröffentlicht." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ $((failed * 10)) -gt "$total" ]; then
+            echo "::error::Mehr als 10 % der Routen fehlgeschlagen ($failed von $total). Nicht veröffentlicht."
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload test build
+        if: steps.gate.outputs.publish == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-test
+          path: site
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Pages artifact
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  # GitHub deaktiviert Zeitpläne in öffentlichen Repos nach 60 Tagen ohne Aktivität.
+  # Dieser Aufruf setzt die Frist zurück, damit die Karte ohne Commits weiterläuft.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep schedule enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/build_site.yml/enable"

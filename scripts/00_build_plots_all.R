@@ -1,0 +1,114 @@
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+})
+
+assign_path <- "data/AWS/icefalls_nearest_station.csv"
+if (!file.exists(assign_path)) stop("Missing: ", assign_path)
+
+assign <- read_csv(assign_path, show_col_types = FALSE)
+
+if (!("uid" %in% names(assign))) stop("Column 'uid' is missing in ", assign_path)
+
+uids <- sort(unique(assign$uid))
+uids <- uids[is.finite(uids)]
+assign_uids <- uids
+
+if (length(uids) == 0) stop("No UIDs found.")
+
+strict_plots <- tolower(Sys.getenv("STRICT_PLOTS", "false")) %in% c("1", "true", "yes", "y")
+rscript_bin <- Sys.getenv("RSCRIPT_BIN", "Rscript")
+
+# Optional: limit build to a specific UID list (for faster testing)
+# Usage:
+#   Rscript scripts/00_build_plots_all.R --uids=12,34,56
+#   or set environment variable UID_LIMIT="12,34,56"
+uid_arg <- grep("^--uids=", commandArgs(trailingOnly = TRUE), value = TRUE)
+uid_raw <- if (length(uid_arg) > 0) sub("^--uids=", "", uid_arg[1]) else Sys.getenv("UID_LIMIT", "")
+if (nzchar(uid_raw)) {
+  uid_list <- suppressWarnings(as.integer(trimws(unlist(strsplit(uid_raw, "[,;\\s]+")))))
+  uid_list <- sort(unique(uid_list[is.finite(uid_list)]))
+  if (length(uid_list) == 0) stop("UID_LIMIT/--uids contains no valid UIDs.")
+  missing_assign <- setdiff(uid_list, assign_uids)
+  if (length(missing_assign) > 0) {
+    message("UIDs not in station assignment table; diagram_uid.R will use fallback: ", paste(missing_assign, collapse = ", "))
+  }
+  uids <- uid_list
+  message("UID filter active: ", paste(uids, collapse = ", "))
+}
+
+dir.create("site/plots", recursive = TRUE, showWarnings = FALSE)
+
+run_rscript_checked <- function(script, args = character()) {
+  status <- system2(rscript_bin, c(script, args), stdout = "", stderr = "")
+  exit_code <- attr(status, "status")
+  if (is.null(exit_code)) exit_code <- status
+  if (length(exit_code) == 0 || is.na(exit_code)) exit_code <- 0
+  if (!identical(as.integer(exit_code), 0L)) {
+    stop("Rscript failed with exit code ", exit_code, ": ", script)
+  }
+  invisible(TRUE)
+}
+
+# 0) Build inversion once (cache)
+inv_script <- "scripts/00_build_inversion_cache.R"
+if (!file.exists(inv_script)) stop("Missing inversion script: ", inv_script)
+
+inv_ok <- TRUE
+tryCatch({
+  run_rscript_checked(inv_script)
+}, error = function(e) {
+  inv_ok <<- FALSE
+  warning(
+    "Inversion cache build failed; continuing with per-UID fallback if possible: ",
+    e$message,
+    call. = FALSE
+  )
+})
+
+if (!inv_ok && strict_plots) {
+  stop("Inversion cache build failed and STRICT_PLOTS is enabled.")
+}
+
+# Plot script path
+plot_script <- "scripts/diagram_uid.R"
+if (!file.exists(plot_script)) stop("Missing chart script: ", plot_script)
+
+failed <- integer(0)
+
+for (u in uids) {
+  message("\n==============================")
+  message("📈 Build Plot UID: ", u)
+  message("==============================")
+  ok <- TRUE
+  tryCatch({
+    # New process per UID (more robust than source()).
+    run_rscript_checked(plot_script, as.character(u))
+  }, error = function(e) {
+    ok <<- FALSE
+    message("UID ", u, " failed: ", e$message)
+  })
+  if (!ok) failed <- c(failed, u)
+}
+
+if (length(failed) > 0) {
+  built <- length(uids) - length(failed)
+  fail_msg <- paste0(
+    "Plots failed for ",
+    length(failed),
+    " of ",
+    length(uids),
+    " UIDs: ",
+    paste(failed, collapse = ", ")
+  )
+  writeLines(as.character(failed), "site/plots_failed_uids.txt", useBytes = TRUE)
+
+  if (strict_plots || built == 0) {
+    stop(fail_msg)
+  }
+
+  warning(fail_msg, call. = FALSE)
+  message("Continuing because at least one plot was built. Failed UID list written to site/plots_failed_uids.txt")
+}
+
+message("\nPlots built: ", length(uids) - length(failed), " / ", length(uids))
