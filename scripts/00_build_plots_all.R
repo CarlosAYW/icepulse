@@ -39,6 +39,15 @@ if (nzchar(uid_raw)) {
 
 dir.create("site/plots", recursive = TRUE, showWarnings = FALSE)
 
+# Caches from earlier seasons are no longer needed.
+season_today <- Sys.Date()
+season_tag <- sprintf(
+  "%d1001",
+  as.integer(format(season_today, "%Y")) - (as.integer(format(season_today, "%m")) < 10)
+)
+cache_files <- list.files(c("data/_cache_weather", "data/_cache_model"), full.names = TRUE)
+unlink(cache_files[!grepl(season_tag, basename(cache_files), fixed = TRUE)])
+
 run_rscript_checked <- function(script, args = character()) {
   status <- system2(rscript_bin, c(script, args), stdout = "", stderr = "")
   exit_code <- attr(status, "status")

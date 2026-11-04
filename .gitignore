@@ -57,3 +57,7 @@ Thumbs.db
 
 # Daily INCA downloads are kept in the Actions cache, never in Git
 /data/inca_nordtirol/*.nc
+
+# Daily weather and model state are kept in the Actions cache
+/data/_cache_weather/
+/data/_cache_model/

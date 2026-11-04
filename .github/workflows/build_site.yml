@@ -11,6 +11,10 @@ on:
         description: "Testlauf nur für diese UIDs, z. B. 12,34,56 (wird nicht veröffentlicht)"
         required: false
         default: ""
+      full_rebuild:
+        description: "Wetter- und Modell-Cache ignorieren und alles neu rechnen"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -76,6 +80,30 @@ jobs:
           key: inca-v1-${{ github.run_id }}
           restore-keys: inca-v1-
 
+      # Wetterdaten werden einmal im Monat komplett neu geladen, damit spätere
+      # Korrekturen der Datenanbieter ankommen. Ändert sich dadurch ein Wert, rechnet
+      # das Modell ab genau dieser Stelle neu.
+      - name: Set cache month
+        id: month
+        run: echo "value=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore weather cache
+        if: inputs.full_rebuild != true
+        uses: actions/cache/restore@v6
+        with:
+          path: data/_cache_weather
+          key: weather-v1-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-${{ github.run_id }}
+          restore-keys: weather-v1-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-
+
+      # Ändert sich der Modellcode, passt der Schlüssel nicht mehr und alles wird neu gerechnet.
+      - name: Restore model state cache
+        if: inputs.full_rebuild != true
+        uses: actions/cache/restore@v6
+        with:
+          path: data/_cache_model
+          key: model-v1-${{ hashFiles('scripts/diagram_uid.R') }}-${{ github.run_id }}
+          restore-keys: model-v1-${{ hashFiles('scripts/diagram_uid.R') }}-
+
       - name: Date sun tables to current season
         run: Rscript scripts/00_roll_sun_tables.R
 
@@ -100,6 +128,22 @@ jobs:
 
       - name: Build map
         run: Rscript scripts/01_build_map.R
+
+      # Auch bei einem Abbruch sichern: Die Dateien werden erst nach erfolgreichem
+      # Download oder Modelllauf geschrieben. Testläufe würden den Cache nur verkleinern.
+      - name: Save weather cache
+        if: always() && inputs.uids == ''
+        uses: actions/cache/save@v6
+        with:
+          path: data/_cache_weather
+          key: weather-v1-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-${{ github.run_id }}
+
+      - name: Save model state cache
+        if: always() && inputs.uids == ''
+        uses: actions/cache/save@v6
+        with:
+          path: data/_cache_model
+          key: model-v1-${{ hashFiles('scripts/diagram_uid.R') }}-${{ github.run_id }}
 
       # Lieber die Karte von gestern online lassen als eine lückenhafte veröffentlichen.
       - name: Check build result

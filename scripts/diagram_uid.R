@@ -54,6 +54,12 @@ PATH_INV_RDS <- file.path(PATH_INV_DIR, sprintf("inversion_%s.rds", format(END_D
 PATH_ELEV_DEM <- "data/DEM/DEM_Tirol_INCAgrid_1km_epsg4326.tif"
 
 PATH_INCA_DIR <- "data/inca_nordtirol/point_timeseries"
+PATH_WX_CACHE <- "data/_cache_weather"
+
+# Days that are downloaded again on every run, because recent values can still change.
+WX_REFRESH_DAYS <- 3L
+# Data fetched in this run is reused as is, e.g. by other routes at the same station.
+WX_CACHE_TAG <- paste(Sys.getenv("GITHUB_RUN_ID", "local"), format(END_DATE))
 
 PATH_OUT      <- sprintf("data/ModelRuns/model_uid%s.csv", UID_TEST)
 
@@ -70,6 +76,7 @@ season_start_oct <- function(d) {
   as.Date(sprintf("%d-10-01", ifelse(m >= 10, y, y - 1)))
 }
 START_DATE <- season_start_oct(END_DATE)
+PATH_MODEL_STATE <- sprintf("data/_cache_model/state_uid%s_%s.rds", UID_TEST, format(START_DATE, "%Y%m%d"))
 
 to_num <- function(x) {
   if (is.numeric(x)) return(x)
@@ -331,10 +338,42 @@ download_inca_point_uid_ts <- function(uid, lat, lon, start_date, end_date,
   outfile
 }
 
+# Keep what earlier runs downloaded and request only the last days again.
+# The APIs take UTC days, so the two parts are joined at 00:00 UTC of fetch_from.
+incremental_fetch <- function(cache_file, start_date, end_date, fetch, time_col, whole_season = FALSE) {
+  dir.create(dirname(cache_file), showWarnings = FALSE, recursive = TRUE)
+  cached <- if (file.exists(cache_file)) tryCatch(readRDS(cache_file), error = function(e) NULL) else NULL
+  if (!is.null(cached) && identical(cached$tag, WX_CACHE_TAG)) return(cached$data)
+
+  fetch_from <- as.Date(start_date)
+  if (!is.null(cached) && !whole_season) {
+    fetch_from <- max(fetch_from, min(as.Date(end_date), cached$end_date) - WX_REFRESH_DAYS)
+  }
+
+  data <- fetch(fetch_from, as.Date(end_date))
+  if (fetch_from > as.Date(start_date)) {
+    cutoff <- as.POSIXct(paste(fetch_from, "00:00:00"), tz = "UTC")
+    data <- bind_rows(cached$data[cached$data[[time_col]] < cutoff, ], data)
+  }
+
+  tmp <- paste0(cache_file, ".tmp")
+  saveRDS(list(tag = WX_CACHE_TAG, end_date = as.Date(end_date), data = data), tmp)
+  file.rename(tmp, cache_file)
+  data
+}
+
 get_inca_point_hourly <- function(uid, start_date, end_date, lon, lat, path_dir = PATH_INCA_DIR, verbose = TRUE) {
-  f <- download_inca_point_uid_ts(uid, lat, lon, start_date, end_date, base_dir = path_dir, verbose = verbose)
+  inca_raw <- incremental_fetch(
+    file.path(PATH_WX_CACHE, sprintf("inca_uid%s_%s.rds", uid, format(as.Date(start_date), "%Y%m%d"))),
+    start_date, end_date,
+    fetch = function(from, to) {
+      f <- download_inca_point_uid_ts(uid, lat, lon, from, to, base_dir = tempdir(), verbose = verbose)
+      parse_inca_timeseries_csv_file(f, tz_local = TZ_LOCAL)
+    },
+    time_col = "time"
+  )
   
-  parse_inca_timeseries_csv_file(f, tz_local = TZ_LOCAL) %>%
+  inca_raw %>%
     arrange(time) %>%
     filter(
       time >= as.POSIXct(start_date, tz = TZ_LOCAL),
@@ -785,7 +824,13 @@ if (nrow(wind_uid) == 0) {
 # =====================================================================
 # 3) Station TL/RF (10-min) -> 10-min Raster + Fill
 # =====================================================================
-wx10 <- get_station_tlrf(START_DATE, END_DATE, station_id, source) %>%
+wx10 <- incremental_fetch(
+  file.path(PATH_WX_CACHE, sprintf("station_%s_%s_%s.rds", source, station_id, format(START_DATE, "%Y%m%d"))),
+  START_DATE, END_DATE,
+  fetch = function(from, to) get_station_tlrf(from, to, station_id, source),
+  time_col = "timestamp",
+  whole_season = identical(source, "LWD") # LWD only offers whole-season files
+) %>%
   mutate(
     timestamp = with_tz(as.POSIXct(timestamp, tz = TZ_LOCAL), TZ_LOCAL),
     TL = to_num(TL),
@@ -1173,7 +1218,36 @@ core_reserve_mm <- numeric(nrow(wx))
 surface_mm[1] <- ice_params$surface_seed_mm
 core_mm[1] <- ice_params$core_seed_mm + ice_params$core_seed_boost_mm * retention_fac_uid
 
-for (i in 2:nrow(wx)) {
+# Resume from the previous run: the ice state at a step depends only on the earlier
+# forcing, so everything before the first changed forcing value stays exactly valid.
+# A changed value anywhere, also far back, restarts the calculation from that step.
+MODEL_FORCING_COLS <- c("base_growth_mm_step", "base_melt_mm_step", "FDH", "PDH", "solar_core_fac", "TLz_72h_step")
+model_static <- c(unlist(ice_params), retention = retention_fac_uid, exposure = exposure_fac_uid)
+
+i_start <- 2L
+model_state <- if (file.exists(PATH_MODEL_STATE)) tryCatch(readRDS(PATH_MODEL_STATE), error = function(e) NULL) else NULL
+if (!is.null(model_state) && identical(model_state$static, model_static)) {
+  n_common <- min(length(model_state$time), nrow(wx))
+  idx <- seq_len(n_common)
+  unchanged <- model_state$time[idx] == as.numeric(wx$time[idx])
+  for (col in MODEL_FORCING_COLS) {
+    old <- model_state$forcing[[col]][idx]
+    new <- wx[[col]][idx]
+    unchanged <- unchanged & ((is.na(old) & is.na(new)) | (!is.na(old) & !is.na(new) & old == new))
+  }
+  first_changed <- which(!unchanged)[1]
+  if (is.na(first_changed)) first_changed <- n_common + 1L
+  if (first_changed >= 2L) {
+    i_start <- first_changed
+    keep <- seq_len(i_start - 1L)
+    surface_mm[keep] <- model_state$surface_mm[keep]
+    core_mm[keep] <- model_state$core_mm[keep]
+    core_reserve_mm[keep] <- model_state$core_reserve_mm[keep]
+  }
+}
+message("Model steps calculated: ", max(0L, nrow(wx) - i_start + 1L), " of ", nrow(wx))
+
+for (i in seq.int(i_start, length.out = max(0L, nrow(wx) - i_start + 1L))) {
   Hprev_m <- (surface_mm[i-1] + core_mm[i-1]) / 1000
   iso <- exp(-Hprev_m / ice_params$H0_m)
   
@@ -1229,6 +1303,19 @@ for (i in 2:nrow(wx)) {
   surface_mm[i] <- max(0, surface_pre_melt - melt_surface)
   core_mm[i] <- max(core_reserve_mm[i], core_pre_melt - melt_core)
 }
+
+dir.create(dirname(PATH_MODEL_STATE), showWarnings = FALSE, recursive = TRUE)
+saveRDS(
+  list(
+    static = model_static,
+    time = as.numeric(wx$time),
+    forcing = as.list(wx[MODEL_FORCING_COLS]),
+    surface_mm = surface_mm,
+    core_mm = core_mm,
+    core_reserve_mm = core_reserve_mm
+  ),
+  PATH_MODEL_STATE
+)
 
 mod <- wx %>%
   mutate(

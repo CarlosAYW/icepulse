@@ -105,6 +105,9 @@ for (idx in seq_along(chunk_starts)) {
 
 nc_files <- sort(unique(nc_files))
 
+# Drop chunks of past seasons and superseded partial chunks from the cache.
+unlink(setdiff(list.files(out_dir, pattern = "\\.nc$", full.names = TRUE), nc_files))
+
 # 2) Read all NetCDFs and pack them into one object --------------------
 
 convert_nc_time <- function(time_vals, time_units) {
