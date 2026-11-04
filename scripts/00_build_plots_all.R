@@ -83,22 +83,37 @@ if (!inv_ok && strict_plots) {
 plot_script <- "scripts/diagram_uid.R"
 if (!file.exists(plot_script)) stop("Missing chart script: ", plot_script)
 
-failed <- integer(0)
+# Bundled INCA download; routes missing afterwards request their own series.
+tryCatch(
+  run_rscript_checked("scripts/00_fetch_inca_points.R"),
+  error = function(e) message("Bundled INCA download failed, using single requests: ", e$message)
+)
 
-for (u in uids) {
-  message("\n==============================")
-  message("📈 Build Plot UID: ", u)
-  message("==============================")
-  ok <- TRUE
+build_uid <- function(u) {
+  message("Build Plot UID: ", u)
   tryCatch({
     # New process per UID (more robust than source()).
     run_rscript_checked(plot_script, as.character(u))
+    TRUE
   }, error = function(e) {
-    ok <<- FALSE
     message("UID ", u, " failed: ", e$message)
+    FALSE
   })
-  if (!ok) failed <- c(failed, u)
 }
+
+# mclapply cannot fork on Windows, where builds run one after another.
+n_cores <- if (.Platform$OS.type == "windows") 1L else max(1L, parallel::detectCores())
+build_uids <- function(x) {
+  res <- parallel::mclapply(x, build_uid, mc.cores = n_cores, mc.preschedule = FALSE)
+  x[!vapply(res, isTRUE, logical(1))]
+}
+
+# One route per station first: routes then find their station data in the cache,
+# so no two processes download the same station.
+station_key <- paste(assign$source, assign$station_id)[match(uids, assign$uid)]
+first_at_station <- !duplicated(station_key) | is.na(station_key)
+message("Building ", length(uids), " routes on ", n_cores, " cores")
+failed <- sort(c(build_uids(uids[first_at_station]), build_uids(uids[!first_at_station])))
 
 if (length(failed) > 0) {
   built <- length(uids) - length(failed)

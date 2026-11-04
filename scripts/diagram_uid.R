@@ -54,12 +54,7 @@ PATH_INV_RDS <- file.path(PATH_INV_DIR, sprintf("inversion_%s.rds", format(END_D
 PATH_ELEV_DEM <- "data/DEM/DEM_Tirol_INCAgrid_1km_epsg4326.tif"
 
 PATH_INCA_DIR <- "data/inca_nordtirol/point_timeseries"
-PATH_WX_CACHE <- "data/_cache_weather"
-
-# Days that are downloaded again on every run, because recent values can still change.
-WX_REFRESH_DAYS <- 3L
-# Data fetched in this run is reused as is, e.g. by other routes at the same station.
-WX_CACHE_TAG <- paste(Sys.getenv("GITHUB_RUN_ID", "local"), format(END_DATE))
+source("scripts/weather_cache.R")
 
 PATH_OUT      <- sprintf("data/ModelRuns/model_uid%s.csv", UID_TEST)
 
@@ -338,33 +333,9 @@ download_inca_point_uid_ts <- function(uid, lat, lon, start_date, end_date,
   outfile
 }
 
-# Keep what earlier runs downloaded and request only the last days again.
-# The APIs take UTC days, so the two parts are joined at 00:00 UTC of fetch_from.
-incremental_fetch <- function(cache_file, start_date, end_date, fetch, time_col, whole_season = FALSE) {
-  dir.create(dirname(cache_file), showWarnings = FALSE, recursive = TRUE)
-  cached <- if (file.exists(cache_file)) tryCatch(readRDS(cache_file), error = function(e) NULL) else NULL
-  if (!is.null(cached) && identical(cached$tag, WX_CACHE_TAG)) return(cached$data)
-
-  fetch_from <- as.Date(start_date)
-  if (!is.null(cached) && !whole_season) {
-    fetch_from <- max(fetch_from, min(as.Date(end_date), cached$end_date) - WX_REFRESH_DAYS)
-  }
-
-  data <- fetch(fetch_from, as.Date(end_date))
-  if (fetch_from > as.Date(start_date)) {
-    cutoff <- as.POSIXct(paste(fetch_from, "00:00:00"), tz = "UTC")
-    data <- bind_rows(cached$data[cached$data[[time_col]] < cutoff, ], data)
-  }
-
-  tmp <- paste0(cache_file, ".tmp")
-  saveRDS(list(tag = WX_CACHE_TAG, end_date = as.Date(end_date), data = data), tmp)
-  file.rename(tmp, cache_file)
-  data
-}
-
 get_inca_point_hourly <- function(uid, start_date, end_date, lon, lat, path_dir = PATH_INCA_DIR, verbose = TRUE) {
   inca_raw <- incremental_fetch(
-    file.path(PATH_WX_CACHE, sprintf("inca_uid%s_%s.rds", uid, format(as.Date(start_date), "%Y%m%d"))),
+    inca_cache_file(uid, start_date),
     start_date, end_date,
     fetch = function(from, to) {
       f <- download_inca_point_uid_ts(uid, lat, lon, from, to, base_dir = tempdir(), verbose = verbose)
@@ -825,7 +796,7 @@ if (nrow(wind_uid) == 0) {
 # 3) Station TL/RF (10-min) -> 10-min Raster + Fill
 # =====================================================================
 wx10 <- incremental_fetch(
-  file.path(PATH_WX_CACHE, sprintf("station_%s_%s_%s.rds", source, station_id, format(START_DATE, "%Y%m%d"))),
+  file.path(WX_CACHE_DIR, sprintf("station_%s_%s_%s.rds", source, station_id, format(START_DATE, "%Y%m%d"))),
   START_DATE, END_DATE,
   fetch = function(from, to) get_station_tlrf(from, to, station_id, source),
   time_col = "timestamp",

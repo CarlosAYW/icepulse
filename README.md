@@ -22,11 +22,13 @@ Schlagen mehr als 10 % der Routen fehl, wird nichts veröffentlicht und die Kart
 | Was | Wie | Wann komplett neu |
 | --- | --- | --- |
 | Stationsdaten | pro Station einmal je Lauf, bei GeoSphere nur die letzten 3 Tage (LWD bietet nur Saisondateien) | jeden Monat, neue Saison |
-| INCA-Punktdaten | pro Route nur die letzten 3 Tage | jeden Monat, geänderte Routentabelle, neue Saison |
+| INCA-Punktdaten | gebündelt bis zu 80 Routen je Anfrage (`00_fetch_inca_points.R`), nur die letzten 3 Tage | jeden Monat, geänderte Routentabelle, neue Saison |
 | INCA-Felder der Karte | nur die letzten Tage | neue Saison |
 | Modell | rechnet ab dem ersten geänderten Antriebswert weiter | geänderte Modellparameter oder `diagram_uid.R`, neue Saison |
 
 Das Fortsetzen des Modells ändert das Ergebnis nicht: Der Zustand eines Zeitschritts hängt nur von früheren Antriebswerten ab, und diese werden exakt verglichen. Die Karte selbst wird immer über die ganze Saison gerechnet, weil ihr Windbezug (`wind_ref`) der Saisonmittelwert ist.
+
+Die GeoSphere-API erlaubt 240 Anfragen pro Stunde. Deshalb wird nicht mehr pro Route angefragt, und die Routen werden parallel auf allen Kernen des Runners gebaut.
 
 Mit `gh workflow run build_site.yml -f full_rebuild=true` werden Wetter- und Modell-Cache ignoriert.
 
