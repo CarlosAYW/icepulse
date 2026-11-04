@@ -92,8 +92,8 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: data/_cache_weather
-          key: weather-v1-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-${{ github.run_id }}
-          restore-keys: weather-v1-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-
+          key: weather-v2-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-${{ github.run_id }}
+          restore-keys: weather-v2-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-
 
       # Ändert sich der Modellcode, passt der Schlüssel nicht mehr und alles wird neu gerechnet.
       - name: Restore model state cache
@@ -132,7 +132,8 @@ jobs:
         run: |
           mkdir -p site/assets
           cp assets/index.html site/index.html
-          find assets -mindepth 1 -maxdepth 1 ! -name index.html -exec cp -R {} site/assets/ \;
+          cp assets/add_icefall.html site/add_icefall.html
+          find assets -mindepth 1 -maxdepth 1 ! -name index.html ! -name add_icefall.html -exec cp -R {} site/assets/ \;
 
       - name: Build map
         run: Rscript scripts/01_build_map.R
@@ -144,7 +145,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: data/_cache_weather
-          key: weather-v1-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-${{ github.run_id }}
+          key: weather-v2-${{ hashFiles('data/AWS/icefalls_nearest_station.csv') }}-${{ steps.month.outputs.value }}-${{ github.run_id }}
 
       - name: Save model state cache
         if: always() && inputs.uids == ''

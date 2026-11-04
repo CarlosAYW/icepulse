@@ -1,0 +1,56 @@
+name: New icefall
+description: Suggest an icefall for the map. It is added after a review.
+title: "New icefall: "
+labels: ["new-icefall"]
+body:
+  - type: markdown
+    attributes:
+      value: "This submission is public. Please only add information you are happy to share."
+  - type: input
+    id: name
+    attributes:
+      label: Name
+    validations:
+      required: true
+  - type: input
+    id: latitude
+    attributes:
+      label: Latitude
+      placeholder: "47.18785"
+    validations:
+      required: true
+  - type: input
+    id: longitude
+    attributes:
+      label: Longitude
+      placeholder: "10.91449"
+    validations:
+      required: true
+  - type: input
+    id: difficulty
+    attributes:
+      label: Difficulty
+  - type: input
+    id: icefall_height_m
+    attributes:
+      label: Height (m)
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach
+  - type: textarea
+    id: descent
+    attributes:
+      label: Descent
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+  - type: input
+    id: first_ascent
+    attributes:
+      label: First ascent
+  - type: input
+    id: topo_url
+    attributes:
+      label: Topo link

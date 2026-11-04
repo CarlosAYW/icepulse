@@ -617,7 +617,10 @@
       try {
         const res = await fetch(`${API_BASE}/api/images?uid=${r.uid}`, { method: "GET" });
         if (!res.ok) return;
-        const arr = await res.json();
+        const all = await res.json();
+        // Photos show current conditions, so only the running season counts.
+        const seasonStart = `${new Date().getMonth() >= 9 ? new Date().getFullYear() : new Date().getFullYear() - 1}-10-01`;
+        const arr = Array.isArray(all) ? all.filter((x) => !x.shot_date || x.shot_date >= seasonStart) : all;
         if (!Array.isArray(arr) || arr.length === 0) {
           r._last_upload_empty = true;
           r._last_upload_ts = NaN;

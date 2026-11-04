@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Add an icefall</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root { --line: #dddddd; --muted: #666666; --accent: #0b5cad; --warn: #8a5a00; --warn-bg: #fff6e0; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; background: #ffffff; color: #111111; }
+    header { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; flex-wrap: wrap; }
+    header a { text-decoration: none; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; color: #111111; }
+    main { max-width: 760px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 24px; margin: 8px 0; }
+    p { line-height: 1.45; }
+    .muted { color: var(--muted); font-size: 14px; }
+    #map { height: 340px; border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+    label { display: block; font-size: 14px; font-weight: 600; margin-top: 12px; }
+    input, textarea { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-top: 4px; }
+    textarea { min-height: 70px; resize: vertical; }
+    button { font: inherit; font-weight: 600; margin-top: 16px; padding: 10px 16px; border: 0; border-radius: 10px; background: var(--accent); color: #ffffff; cursor: pointer; }
+    #note { display: none; margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html">Home</a>
+    <a href="map.html">Map</a>
+    <a href="list.html">Icefall list</a>
+  </header>
+  <main>
+    <h1>Add an icefall</h1>
+    <p>Missing a route? Click its position on the map and fill in what you know. Grey dots are routes already included.</p>
+    <p class="muted">The next step opens a form on GitHub, which needs a free account. Your submission is public there. It is added to the map after a review.</p>
+
+    <div id="map"></div>
+
+    <form id="form">
+      <div class="row">
+        <div><label for="latitude">Latitude *</label><input id="latitude" required inputmode="decimal" placeholder="Click the map"/></div>
+        <div><label for="longitude">Longitude *</label><input id="longitude" required inputmode="decimal" placeholder="Click the map"/></div>
+      </div>
+      <div id="note"></div>
+      <label for="name">Name *</label><input id="name" required maxlength="120"/>
+      <div class="row">
+        <div><label for="difficulty">Difficulty</label><input id="difficulty" placeholder="WI4" maxlength="40"/></div>
+        <div><label for="icefall_height_m">Height (m)</label><input id="icefall_height_m" inputmode="numeric" maxlength="10"/></div>
+      </div>
+      <label for="approach">Approach</label><textarea id="approach" maxlength="500"></textarea>
+      <label for="descent">Descent</label><textarea id="descent" maxlength="500"></textarea>
+      <label for="description">Description</label><textarea id="description" maxlength="800"></textarea>
+      <label for="first_ascent">First ascent</label><input id="first_ascent" maxlength="160"/>
+      <label for="topo_url">Topo link</label><input id="topo_url" type="url" placeholder="https://" maxlength="300"/>
+      <button type="submit">Continue on GitHub</button>
+    </form>
+  </main>
+
+  <script>
+    var ISSUE_URL = "https://github.com/CarlosAYW/eiskarte/issues/new";
+    var RASTER = { south: 46.7, west: 10.1, north: 47.7, east: 12.2 };
+    var FIELDS = ["name", "latitude", "longitude", "difficulty", "icefall_height_m", "approach", "descent", "description", "first_ascent", "topo_url"];
+
+    var byId = function (id) { return document.getElementById(id); };
+    var parseCoord = function (v) { return Number(String(v).trim().replace(",", ".")); };
+
+    var map = L.map("map").fitBounds([[RASTER.south, RASTER.west], [RASTER.north, RASTER.east]]);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+    L.rectangle([[RASTER.south, RASTER.west], [RASTER.north, RASTER.east]], {
+      color: "#1c7ed6", weight: 2, fill: false, interactive: false
+    }).addTo(map);
+
+    fetch("icefalls_table.json")
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) {
+        rows.forEach(function (r) {
+          if (!isFinite(r.latitude) || !isFinite(r.longitude) || r.latitude === null || r.longitude === null) return;
+          L.circleMarker([r.latitude, r.longitude], { radius: 3, weight: 0, fillColor: "#777777", fillOpacity: 0.7 })
+            .bindTooltip(String(r.name || ""))
+            .addTo(map);
+        });
+      })
+      .catch(function () { /* the form works without the existing routes */ });
+
+    var marker = null;
+    function updateNote() {
+      var lat = parseCoord(byId("latitude").value);
+      var lon = parseCoord(byId("longitude").value);
+      var note = byId("note");
+      var known = isFinite(lat) && isFinite(lon) && byId("latitude").value !== "" && byId("longitude").value !== "";
+      var inside = lat >= RASTER.south && lat <= RASTER.north && lon >= RASTER.west && lon <= RASTER.east;
+      note.style.display = known && !inside ? "block" : "none";
+      note.textContent = "This position is outside the blue ice thickness area. The route can still be added, but the map layer does not cover it.";
+    }
+
+    function setPosition(lat, lon) {
+      byId("latitude").value = lat.toFixed(5);
+      byId("longitude").value = lon.toFixed(5);
+      if (marker) marker.setLatLng([lat, lon]); else marker = L.marker([lat, lon]).addTo(map);
+      updateNote();
+    }
+
+    map.on("click", function (e) { setPosition(e.latlng.lat, e.latlng.lng); });
+    byId("latitude").addEventListener("input", updateNote);
+    byId("longitude").addEventListener("input", updateNote);
+
+    byId("form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var lat = parseCoord(byId("latitude").value);
+      var lon = parseCoord(byId("longitude").value);
+      if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+        byId("latitude").setCustomValidity("Please click the map or enter valid coordinates.");
+        byId("latitude").reportValidity();
+        byId("latitude").setCustomValidity("");
+        return;
+      }
+      var query = new URLSearchParams({ template: "new-icefall.yml", title: "New icefall: " + byId("name").value.trim() });
+      FIELDS.forEach(function (f) {
+        var v = byId(f).value.trim();
+        if (v) query.set(f, v);
+      });
+      window.open(ISSUE_URL + "?" + query.toString(), "_blank", "noopener");
+    });
+  </script>
+</body>
+</html>

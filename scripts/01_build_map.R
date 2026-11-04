@@ -969,6 +969,7 @@ m <- m |>
       "<div style='background:rgba(255,255,255,0.9);padding:6px 8px;border-radius:6px;display:flex;flex-direction:column;gap:6px;'>
          <a href='index.html' class='map-home-link' style='font-size:14px;font-weight:bold;'>🏠 Home</a>
          <a href='list.html' class='map-list-link' style='font-size:14px;font-weight:bold;'>📋 Icefall list</a>
+         <a href='add_icefall.html' class='map-add-link' style='font-size:14px;font-weight:bold;'>➕ Add icefall</a>
        </div>"
     )
   ) |>
@@ -1072,11 +1073,41 @@ m <- m |>
     clusterOptions = markerClusterOptions()
   )
 
+# Data area: the ice thickness raster, and the outline of all routes with a model run.
+# Routes outside both are listed, but have no modelled ice.
+modelled_routes <- readr::read_csv(
+  "data/AWS/icefalls_nearest_station.csv",
+  show_col_types = FALSE, progress = FALSE
+) |>
+  dplyr::filter(is.finite(ice_lat), is.finite(ice_lon))
+route_hull <- modelled_routes[chull(modelled_routes$ice_lon, modelled_routes$ice_lat), ]
+
+m <- m |>
+  addRectangles(
+    lng1 = ext@xmin, lat1 = ext@ymin, lng2 = ext@xmax, lat2 = ext@ymax,
+    color = "#1c7ed6", weight = 2, fill = FALSE,
+    options = pathOptions(interactive = FALSE),
+    group = "Data area"
+  ) |>
+  addPolygons(
+    lng = route_hull$ice_lon, lat = route_hull$ice_lat,
+    color = "#d6336c", weight = 2, dashArray = "6 6", fill = FALSE,
+    options = pathOptions(interactive = FALSE),
+    group = "Data area"
+  ) |>
+  addLegend(
+    position = "bottomleft",
+    colors = c("#1c7ed6", "#d6336c"),
+    labels = c("Ice thickness layer", "Routes with model"),
+    title = "Data area",
+    group = "Data area"
+  )
+
 # Layers control (shows "Icefalls" as overlay and hides "IcefallsRaw")
 m <- m |>
   addLayersControl(
     baseGroups    = c("OSM", "Terrain (Topo)"),
-    overlayGroups = c("Ice thickness", "Icefalls"),
+    overlayGroups = c("Ice thickness", "Icefalls", "Data area"),
     options       = layersControlOptions(collapsed = FALSE)
   ) |>
   fitBounds(lng1 = ext@xmin, lat1 = ext@ymin, lng2 = ext@xmax, lat2 = ext@ymax)

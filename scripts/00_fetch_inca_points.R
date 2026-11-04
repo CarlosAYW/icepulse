@@ -47,10 +47,7 @@ fetch_points <- function(points, from, to) {
   names(rows)[startsWith(names(rows), "GL")] <- "GL"
   rows$point <- rep(seq_len(nrow(points)), each = n_times)
 
-  # Same result as parse_inca_timeseries_csv_file in diagram_uid.R, which loses the
-  # 00:00 UTC rows (as.character() drops the time at midnight, the parser then gives NA).
   series <- rows |>
-    filter(!(hour(time) == 0 & minute(time) == 0)) |>
     mutate(time = with_tz(as.POSIXct(time, tz = "UTC"), TZ_LOCAL)) |>
     select(point, time, UU, VV, GL)
   lapply(split(series, series$point), function(x) select(x, -point))

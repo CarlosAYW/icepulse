@@ -48,6 +48,8 @@ gh workflow run build_site.yml -f uids=1,48
 
 Zeilen in `add_new/new_icefalls.csv` eintragen und dann `Rscript scripts/add_new_icefalls.R` ausführen. Die dafür nötigen großen Höhenmodelle liegen nicht in diesem Repo, sondern nur lokal in `ice-waterfalls/data/DEM`. Details stehen in `add_new/README.md`.
 
+Eingereichte Eisfälle: Das Formular `add_icefall.html` legt ein öffentliches GitHub-Issue an (`new-icefall`). Vergibst du das Label `approved`, landet der Eintrag in `add_new/new_icefalls.csv` und das Issue wird geschlossen. Auf der Karte erscheint er erst nach dem Lauf von `add_new_icefalls.R`, der die großen Höhenmodelle aus `data/DEM` braucht und daher lokal läuft.
+
 ## Herkunft
 
 Der Code stammt aus [CarlosAYW/ice-waterfalls](https://github.com/CarlosAYW/ice-waterfalls) (Stand `0f85d2d`), also inklusive der nach der Abgabe korrigierten Solarterm-Indizierung. Der Modellstand der Arbeit selbst ist dort unter dem Tag `thesis-submission` eingefroren. Einstieg für die Begutachtung der Arbeit ist [CarlosAYW/waterfall-ice-thesis](https://github.com/CarlosAYW/waterfall-ice-thesis).

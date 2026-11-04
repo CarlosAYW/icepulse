@@ -156,6 +156,8 @@ read_geosphere_csv <- function(path) {
 }
 
 parse_time_any_utc <- function(x) {
+  # as.character() drops the time at midnight, which would lose those rows.
+  if (inherits(x, "POSIXct")) return(with_tz(x, "UTC"))
   x <- as.character(x)
   x[x %in% c("", "NA", "NaN", "NULL")] <- NA_character_
   t <- suppressWarnings(lubridate::ymd_hms(x, tz = "UTC"))
