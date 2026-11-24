@@ -1257,7 +1257,7 @@ m <- m |>
 # 13) Output: not self-contained, into site/ ---------------------------
 
 dir.create("site", showWarnings = FALSE)
-saveWidget(m, "site/map.html", selfcontained = FALSE)
+saveWidget(m, "site/map.html", selfcontained = FALSE, title = "IcePulse - Map")
 message("Done: site/map.html + site/img/*.png")
 
 if (interactive()) {

@@ -1,8 +1,8 @@
-# Eiskarte
+# IcePulse
 
-Tägliche Eiskarte für Eisfälle in Nordtirol, basierend auf dem Modell der Masterarbeit.
+IcePulse ist eine tägliche Karte der Eisfälle in Nordtirol, basierend auf dem Modell der Masterarbeit.
 
-**Karte:** https://carlosayw.github.io/eiskarte/
+**Karte:** https://carlosayw.github.io/icepulse/
 
 ## Täglicher Ablauf
 

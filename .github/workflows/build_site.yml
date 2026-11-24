@@ -1,4 +1,4 @@
-name: Eiskarte täglich bauen
+name: IcePulse täglich bauen
 
 on:
   schedule:

@@ -499,7 +499,7 @@ html_lines <- c(
   '<head>',
   '  <meta charset="utf-8"/>',
   '  <meta name="viewport" content="width=device-width, initial-scale=1"/>',
-  '  <title>Icefalls - Overview</title>',
+  '  <title>IcePulse - Icefall list</title>',
   '  <style>',
   '    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 0; color: #111; }',
   '    header { padding: 10px 14px; border-bottom: 1px solid #ddd; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }',
@@ -823,7 +823,7 @@ for (i in seq_len(nrow(out))) {
     "<head>",
     "  <meta charset='utf-8'/>",
     "  <meta name='viewport' content='width=device-width, initial-scale=1'/>",
-    paste0("  <title>", nm, " (UID ", uid_pad, ")</title>"),
+    paste0("  <title>", nm, " (UID ", uid_pad, ") - IcePulse</title>"),
     
     # Leaflet (small map)
     "  <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>",
